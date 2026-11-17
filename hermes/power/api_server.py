@@ -24,22 +24,45 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 log = logging.getLogger("hermes.api")
 
 
-def make_server(cfg: dict, host: str | None = None, port: int | None = None, agent_factory=None) -> ThreadingHTTPServer:
+def make_server(cfg: dict, host: str | None = None, port: int | None = None, agent_factory=None,
+                dashboard=None) -> ThreadingHTTPServer:
+    """OpenAI-compatible API; with ``dashboard`` also serves the web UI on every non-/v1 path."""
     acfg = cfg.get("api_server", {}) or {}
     key = os.environ.get(acfg.get("key_env", "API_SERVER_KEY"), "")
     model_name = acfg.get("model_name", "hermes-agent")
     host = host or acfg.get("host", "127.0.0.1")
     port = int(port if port is not None else acfg.get("port", 8642))
-    if host not in ("127.0.0.1", "localhost", "::1") and not key:
+    local = host in ("127.0.0.1", "localhost", "::1")
+    if not local and not key:
         raise RuntimeError("refusing to listen on a public interface without API_SERVER_KEY")
+    if dashboard is not None and not local and not os.environ.get((cfg.get("dashboard", {}) or {}).get("token_env", "HERMES_WEB_TOKEN")):
+        raise RuntimeError("refusing to expose the dashboard on a public interface without HERMES_WEB_TOKEN")
     if agent_factory is None:
         from hermes.agent import AIAgent
 
         agent_factory = AIAgent
     session_locks: dict[str, threading.Lock] = {}
 
+    def is_api(path: str) -> bool:
+        p = path.split("?", 1)[0]
+        return p.startswith("/v1/") or p == "/health"
+
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+
+        def _ui(self) -> bool:
+            if dashboard is not None and not is_api(self.path):
+                dashboard.handle(self)
+                return True
+            return False
+
+        def do_PUT(self):
+            if not self._ui():
+                self._json(405, {"error": {"message": "method not allowed"}})
+
+        def do_DELETE(self):
+            if not self._ui():
+                self._json(405, {"error": {"message": "method not allowed"}})
 
         def _json(self, status: int, payload: dict) -> None:
             data = json.dumps(payload).encode()
@@ -57,6 +80,8 @@ def make_server(cfg: dict, host: str | None = None, port: int | None = None, age
             return hmac.compare_digest(auth, f"Bearer {key}")
 
         def do_OPTIONS(self):
+            if self._ui():
+                return
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Hermes-Session")
@@ -65,6 +90,8 @@ def make_server(cfg: dict, host: str | None = None, port: int | None = None, age
             self.end_headers()
 
         def do_GET(self):
+            if self._ui():
+                return
             if self.path == "/health":
                 return self._json(200, {"status": "ok"})
             if not self._authorized():
@@ -74,6 +101,8 @@ def make_server(cfg: dict, host: str | None = None, port: int | None = None, age
             self._json(404, {"error": {"message": "not found"}})
 
         def do_POST(self):
+            if self._ui():
+                return
             if not self._authorized():
                 return self._json(401, {"error": {"message": "invalid API key"}})
             if self.path != "/v1/chat/completions":
@@ -129,12 +158,33 @@ def make_server(cfg: dict, host: str | None = None, port: int | None = None, age
     return ThreadingHTTPServer((host, port), Handler)
 
 
-def serve(cfg: dict, host: str | None = None, port: int | None = None) -> None:
-    server = make_server(cfg, host, port)
-    print(f"Hermes API server on http://{server.server_address[0]}:{server.server_address[1]}/v1  (Ctrl+C to stop)")
+def serve(cfg: dict, host: str | None = None, port: int | None = None, with_dashboard: bool = True,
+          open_browser: bool = False) -> None:
+    dashboard = None
+    if with_dashboard:
+        from hermes.web.dashboard import Dashboard
+
+        wcfg = cfg.get("dashboard", {}) or {}
+        bind = host or (cfg.get("api_server", {}) or {}).get("host", "127.0.0.1")
+        dashboard = Dashboard(cfg, allowed_hosts=["127.0.0.1", "localhost", "[::1]", *([bind] if bind not in ("0.0.0.0", "::") else []),
+                                                  *wcfg.get("allowed_hosts", [])])
+    server = make_server(cfg, host, port, dashboard=dashboard)
+    shown_host = server.server_address[0] if server.server_address[0] not in ("0.0.0.0", "::") else "127.0.0.1"
+    port = server.server_address[1]
+    print(f"Hermes API:       http://{shown_host}:{port}/v1")
+    if dashboard is not None:
+        url = dashboard.login_url(shown_host, port)
+        print(f"Hermes dashboard: {url}\n  (this link signs you in - keep it private)")
+        if open_browser:
+            import webbrowser
+
+            threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+    print("Ctrl+C to stop")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        if dashboard is not None:
+            dashboard.shutdown()
         server.server_close()

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Dashboard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <img src="/favicon.svg" alt="" width="26" height="26">
+        <div>
+          <div class="brand-name">Hermes</div>
+          <div class="brand-sub" id="brand-sub">agent dashboard</div>
+        </div>
+      </div>
+      <nav class="nav" id="nav">
+        <a href="#/chat" data-page="chat"><span class="ico">💬</span>Chat</a>
+        <a href="#/sessions" data-page="sessions"><span class="ico">🗂</span>Sessions</a>
+        <a href="#/memory" data-page="memory"><span class="ico">🧠</span>Memory</a>
+        <a href="#/skills" data-page="skills"><span class="ico">📚</span>Skills</a>
+        <a href="#/cron" data-page="cron"><span class="ico">⏰</span>Scheduled</a>
+        <a href="#/insights" data-page="insights"><span class="ico">📊</span>Insights</a>
+        <a href="#/settings" data-page="settings"><span class="ico">⚙️</span>Settings</a>
+      </nav>
+      <div class="side-foot">
+        <div class="status-line" id="status-line">connecting…</div>
+        <div class="theme-switch" role="group" aria-label="Theme">
+          <button type="button" data-theme-choice="light" title="Light">☀︎</button>
+          <button type="button" data-theme-choice="system" title="System">◐</button>
+          <button type="button" data-theme-choice="dark" title="Dark">☾</button>
+        </div>
+      </div>
+    </aside>
+    <button class="menu-btn" id="menu-btn" type="button" aria-label="Menu">☰</button>
+    <main class="main" id="main" tabindex="-1"></main>
+  </div>
+  <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

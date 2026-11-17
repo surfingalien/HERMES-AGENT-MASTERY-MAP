@@ -29,6 +29,9 @@ class ConfigTests(HermesTestCase):
         # only non-default values are written
         self.assertIn("max_turns", config.path("config.yaml").read_text())
         self.assertNotIn("docker_image", config.path("config.yaml").read_text())
+        # sections must not shadow each other (web search vs dashboard)
+        self.assertEqual(config.DEFAULT_CONFIG["web"]["backend"], "auto")
+        self.assertEqual(config.DEFAULT_CONFIG["dashboard"]["token_env"], "HERMES_WEB_TOKEN")
 
     def test_env_file_is_private(self):
         config.set_env_value("FOO_API_KEY", "abc123")

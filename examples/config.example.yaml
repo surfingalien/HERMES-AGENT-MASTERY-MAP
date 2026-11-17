@@ -32,6 +32,7 @@ agent:
 
 platform_toolsets:          # enable only the toolsets you need (Quick tip)
   cli: [hermes-cli]
+  web: [hermes-cli]         # the web dashboard (toggle per toolset in Settings)
   telegram: [web, file, memory, skills, session_search, todo, cronjob, vision, tts, delegation]
 
 terminal:
@@ -87,6 +88,10 @@ plugins:
   enabled: []
 
 api_server: {host: 127.0.0.1, port: 8642, key_env: API_SERVER_KEY}
+
+dashboard:                  # `hermes dashboard` (served on the api_server port)
+  token_env: HERMES_WEB_TOKEN   # required to bind beyond localhost
+  allowed_hosts: []             # extra Host names when behind a reverse proxy, e.g. [agent.example.com]
 
 pricing:                    # override cost estimates (USD per 1M tokens)
   my-local-model: {input: 0, output: 0}

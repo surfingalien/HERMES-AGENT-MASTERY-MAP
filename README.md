@@ -45,6 +45,28 @@ Only one runtime dependency is required (PyYAML). Optional extras:
 Try it fully offline with the mock provider: `hermes model mock:mock-1` then
 `hermes -q 'call:terminal {"command": "uname -a"}'`.
 
+## Web dashboard
+
+```bash
+hermes dashboard          # opens http://127.0.0.1:8642 with a private sign-in link
+```
+
+A built-in, dependency-free web UI (served by `hermes dashboard` / `hermes serve`):
+
+| Page | What you can do |
+|------|-----------------|
+| **Chat** | stream replies, watch tool calls live, approve/deny risky commands with buttons, answer clarifying questions, stop a run, resume any past conversation |
+| **Sessions** | browse and full-text search every conversation from every platform; rename, delete, reopen |
+| **Memory** | edit `MEMORY.md` / `USER.md` entries with usage meters (secrets & prompt-injection text rejected) |
+| **Skills** | browse, edit, create and delete skills; install from the hub; lint warnings inline |
+| **Scheduled** | create jobs with natural-language schedules, pause/resume/run now, read recent outputs |
+| **Insights** | cost by model, sessions by platform, tool usage, most expensive sessions |
+| **Settings** | model/provider, approvals, personality, terminal backend, per-toolset switches, `hermes doctor`, error log |
+
+Security: binds to `127.0.0.1`; sign-in via a one-time link (HttpOnly, SameSite=Strict cookie);
+mutating requests need an `X-Hermes` header (CSRF); Host-header check (DNS rebinding); strict CSP.
+To expose it beyond localhost set `HERMES_WEB_TOKEN` and put it behind HTTPS.
+
 ## Useful commands
 
 | Command | What it does |
@@ -65,7 +87,8 @@ Try it fully offline with the mock provider: `hermes model mock:mock-1` then
 | `hermes mcp add fs -- npx -y @modelcontextprotocol/server-filesystem ~/docs` | MCP servers |
 | `hermes profile create researcher` / `hermes -p researcher` | specialist bots |
 | `hermes kanban add "..." --assignee writer` / `hermes kanban work` | multi-agent board |
-| `hermes serve` | OpenAI-compatible API server |
+| `hermes dashboard` | web dashboard (chat, sessions, memory, skills, cron, insights, settings) |
+| `hermes serve [--no-dashboard]` | OpenAI-compatible API server (+ dashboard on the same port) |
 | `hermes acp` | editor integration (Agent Client Protocol) |
 | `hermes voice` | push-to-talk voice mode |
 | `hermes batch prompts.jsonl --workers 8` | parallel batch runs + trajectories |
@@ -119,7 +142,7 @@ hermes gateway run       # or: hermes gateway install (systemd / launchd)
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -t .     # 74 tests, offline (mock provider)
+python -m unittest discover -s tests -t .     # 82 tests, offline (mock provider)
 ```
 
 ## Known limitations
