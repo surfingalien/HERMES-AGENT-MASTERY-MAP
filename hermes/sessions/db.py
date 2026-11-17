@@ -57,6 +57,10 @@ END;
 """
 
 
+_INIT_LOCK = threading.Lock()
+_INITIALIZED: set[str] = set()
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -73,9 +77,31 @@ class SessionDB:
         self._lock = threading.RLock()
         self.conn = sqlite3.connect(self.path, timeout=30, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        with self._lock, self.conn:
-            self.conn.executescript(SCHEMA)
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        """Switch to WAL and create tables once per file per process.
+
+        Changing journal mode and running DDL can fail fast with "database is
+        locked" when several agents open the same file at once (parallel batch
+        workers, delegation), so it is serialised in-process and retried
+        across processes.
+        """
+        key = str(self.path.resolve())
+        with _INIT_LOCK:
+            if key in _INITIALIZED:
+                return
+            for attempt in range(20):
+                try:
+                    self.conn.execute("PRAGMA journal_mode=WAL")
+                    with self.conn:
+                        self.conn.executescript(SCHEMA)
+                    _INITIALIZED.add(key)
+                    return
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc) and "busy" not in str(exc) or attempt == 19:
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
 
     def _conn(self) -> sqlite3.Connection:
         return self.conn
