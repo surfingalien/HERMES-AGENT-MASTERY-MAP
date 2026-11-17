@@ -31,4 +31,4 @@ include-package-data = true
 include = ["hermes*"]
 
 [tool.setuptools.package-data]
-hermes = ["bundled_skills/**/*"]
+hermes = ["bundled_skills/**/*", "web/static/*"]

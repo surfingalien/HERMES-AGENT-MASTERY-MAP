@@ -66,6 +66,7 @@ PLATFORM_HINTS = {
     "google_chat": "You are in Google Chat. Use *bold* and `code`; keep it brief.",
     "cron": "You are running unattended as a scheduled task. Nobody can answer questions.",
     "api": "You are serving an API request. Return the answer directly.",
+    "web": "You are in the Hermes web dashboard. Markdown (headings, lists, tables, code blocks) renders.",
     "subagent": "You are a subagent. Work autonomously and report back concisely.",
 }
 

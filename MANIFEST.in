@@ -1,2 +1,3 @@
 include README.md LICENSE
 recursive-include hermes/bundled_skills *
+recursive-include hermes/web/static *

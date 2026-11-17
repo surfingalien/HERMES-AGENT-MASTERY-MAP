@@ -813,7 +813,14 @@ def cmd_kanban(args) -> int:
 def cmd_serve(args) -> int:
     from hermes.power.api_server import serve
 
-    serve(_cfg(), args.host, args.port)
+    serve(_cfg(), args.host, args.port, with_dashboard=not args.no_dashboard)
+    return 0
+
+
+def cmd_dashboard(args) -> int:
+    from hermes.power.api_server import serve
+
+    serve(_cfg(), args.host, args.port, with_dashboard=True, open_browser=not args.no_open)
     return 0
 
 
@@ -1022,9 +1029,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--once", action="store_true")
     s.add_argument("--board", default="default")
 
-    s = sub.add_parser("serve", help="OpenAI-compatible API server")
+    s = sub.add_parser("serve", help="OpenAI-compatible API server (+ web dashboard)")
     s.add_argument("--host")
     s.add_argument("--port", type=int)
+    s.add_argument("--no-dashboard", action="store_true", help="serve only the /v1 API")
+    s = sub.add_parser("dashboard", help="open the web dashboard (chat, sessions, memory, skills, cron, insights, settings)")
+    s.add_argument("--host")
+    s.add_argument("--port", type=int)
+    s.add_argument("--no-open", action="store_true", help="don't open a browser")
     sub.add_parser("acp", help="Agent Client Protocol server for editors (stdio)")
 
     s = sub.add_parser("batch", help="run prompts from a file in parallel")
@@ -1099,7 +1111,7 @@ def main(argv: list[str] | None = None) -> int:
         None: cmd_chat, "chat": cmd_chat, "setup": cmd_setup, "model": cmd_model, "config": cmd_config, "tools": cmd_tools,
         "plugins": cmd_plugins, "send": cmd_send, "gateway": cmd_gateway, "pairing": cmd_pairing, "sessions": cmd_sessions,
         "memory": cmd_memory, "skills": cmd_skills, "cron": cmd_cron, "mcp": cmd_mcp, "profile": cmd_profile, "kanban": cmd_kanban,
-        "serve": cmd_serve, "acp": cmd_acp, "batch": cmd_batch, "voice": cmd_voice, "insights": cmd_insights, "backup": cmd_backup,
+        "serve": cmd_serve, "dashboard": cmd_dashboard, "acp": cmd_acp, "batch": cmd_batch, "voice": cmd_voice, "insights": cmd_insights, "backup": cmd_backup,
         "restore": cmd_restore, "checkpoints": cmd_checkpoints, "logs": cmd_logs, "doctor": cmd_doctor, "update": cmd_update,
     }
     try:

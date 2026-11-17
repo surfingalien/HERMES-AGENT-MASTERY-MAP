@@ -2,6 +2,7 @@
 
 ```
            ┌──────────── inputs ─────────────┐
+ Web UI ───┐
  CLI REPL ─┤ Telegram Discord Slack WhatsApp │  cron ticker   API server   ACP (editors)   batch
            │ Signal Email Teams Google Chat  │      │              │            │            │
            └───────────────┬─────────────────┘      │              │            │            │
@@ -26,6 +27,16 @@
   fallback chain,      image, tts, memory, skills,  Skills Hub
   credential pools     delegate, cron, code, MCP…
 ```
+
+## Web dashboard
+
+`hermes/web/dashboard.py` is a JSON + Server-Sent-Events backend mounted on the same
+`ThreadingHTTPServer` as the OpenAI-compatible API (`/v1/*` → API, everything else → UI).
+Each chat message starts a `ChatRun` in a worker thread; agent callbacks (`on_tool_start`,
+`on_tool_end`, `on_thinking`, approvals, clarify) become ordered events streamed to the browser
+at `/api/runs/<id>/events`. Approval and clarify prompts block the agent thread until the browser
+answers via `/api/runs/<id>/approve|answer`. The UI (`hermes/web/static/`) is a single vanilla-JS
+page with no external assets, so it runs under a strict CSP.
 
 ## Message format
 

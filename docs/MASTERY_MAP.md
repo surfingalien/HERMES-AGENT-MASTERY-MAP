@@ -151,7 +151,7 @@ Also: per-chat persistent sessions, DM pairing codes (`hermes pairing approve`),
 | 93 | provider routing | `provider_routing` (OpenRouter), `smart_model_routing` |
 | 94 | fallback providers | `fallback_providers` → `FallbackProvider` |
 | 95 | credential pools | `credential_pools` → `CredentialPool` rotation on 401/402/403/429 |
-| 96 | API server | `hermes serve` – OpenAI-compatible `/v1/chat/completions` (+ streaming), `/v1/models` |
+| 96 | API server | `hermes serve` – OpenAI-compatible `/v1/chat/completions` (+ streaming), `/v1/models`; same port serves the web dashboard (`hermes dashboard`) |
 | 97 | ACP editor integration | `hermes acp` – Agent Client Protocol over stdio |
 | 98 | voice mode | `hermes voice`, `/voice` – record → STT → agent → TTS |
 | 99 | batch processing | `hermes batch prompts.jsonl --workers 8` → results + ShareGPT trajectories |
