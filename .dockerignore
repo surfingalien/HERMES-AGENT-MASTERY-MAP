@@ -1,0 +1,6 @@
+.git
+**/__pycache__
+*.pyc
+tests
+batch_output
+*.tar.gz

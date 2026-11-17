@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+batch_output/
+hermes-data/
+workspace/
+*.tar.gz
+.env

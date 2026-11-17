@@ -1,0 +1,92 @@
+# Copy to ~/.hermes/config.yaml (or use `hermes setup` / `hermes config set`).
+# Only keys you change need to be present; everything else uses defaults.
+
+model:
+  provider: openrouter                 # openrouter | nous | anthropic | openai | gemini | deepseek | groq | xai | ollama | lmstudio | custom
+  default: anthropic/claude-opus-5-5   # for provider: anthropic use claude-opus-5-5
+  reasoning_effort: medium             # low | medium | high | xhigh | max (where supported)
+  context_length: 200000
+
+# Tried in order if the primary fails (rate limits, outages, auth) - #94
+fallback_providers:
+  - {provider: anthropic, model: claude-opus-5-5}
+  - {provider: ollama, model: hermes3}
+
+# Several keys per provider, rotated on 429/401 - #95
+credential_pools:
+  openrouter: [OPENROUTER_API_KEY, OPENROUTER_API_KEY_2]
+
+# OpenRouter provider routing - #93
+provider_routing:
+  sort: throughput          # price | throughput | latency
+  ignore: [SomeProvider]
+
+smart_model_routing:        # cheap model for short, simple turns
+  enabled: false
+  cheap_model: anthropic/claude-haiku-5-5
+
+agent:
+  max_turns: 60
+  personality: ""           # concise | technical | teacher | creative | skeptic | helpful
+  verify_outputs: false     # extra self-check pass after tool-using answers (#86)
+
+platform_toolsets:          # enable only the toolsets you need (Quick tip)
+  cli: [hermes-cli]
+  telegram: [web, file, memory, skills, session_search, todo, cronjob, vision, tts, delegation]
+
+terminal:
+  backend: local            # local | docker | ssh | daytona | modal (#79)
+  cwd: ~/workspace
+  env_passthrough: [GITHUB_TOKEN]   # secrets are stripped from child processes unless listed (#77)
+  docker_image: python:3.12-slim
+  docker_network: bridge    # set "none" to cut off network access (#80)
+  ssh_host: ""
+  ssh_user: ""
+
+memory:
+  memory_char_limit: 2200
+  user_char_limit: 1375
+  read_only_platforms: [discord]    # never write memory from these (#29)
+  provider: builtin                 # or session_recall (auto-recall from past sessions)
+
+approvals:
+  mode: manual              # manual | smart | off
+  allowlist: ["git push origin main"]
+
+security:
+  redact_secrets: true
+  protected_paths: [~/.ssh, ~/.aws, ~/.gnupg, ~/.hermes/.env]
+
+checkpoints: {enabled: true, max_snapshots: 50}
+
+delegation:
+  max_concurrent: 3
+  default_toolsets: [terminal, file, web]
+
+gateway:
+  home_channels:
+    telegram: "123456789"
+  dm_pairing: true
+  group_require_mention: true
+  webhook_port: 8650
+
+mcp_servers:
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/me/docs"]
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env: {GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"}
+    tools: {include: [search_repositories, create_issue, get_file_contents]}
+  remote-docs:
+    url: https://mcp.example.com/mcp
+    headers: {Authorization: "Bearer ${DOCS_MCP_TOKEN}"}
+
+plugins:
+  enabled: []
+
+api_server: {host: 127.0.0.1, port: 8642, key_env: API_SERVER_KEY}
+
+pricing:                    # override cost estimates (USD per 1M tokens)
+  my-local-model: {input: 0, output: 0}

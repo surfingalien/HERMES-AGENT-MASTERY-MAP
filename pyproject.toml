@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-agent-replica"
+version = "0.1.0"
+description = "An independent, from-scratch replica of a self-improving AI agent built from the Hermes Agent Mastery Map: tools, memory, skills, messaging gateway, cron, browser, MCP, deployment backends and power-user features."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=1.0"]
+browser = ["playwright>=1.40"]
+discord = ["discord.py>=2.3"]
+slack = ["slack-bolt>=1.18"]
+daytona = ["daytona>=0.10"]
+modal = ["modal>=0.64"]
+all = ["anthropic>=1.0", "playwright>=1.40", "discord.py>=2.3", "slack-bolt>=1.18"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+hermes = "hermes.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["hermes*"]
+
+[tool.setuptools.package-data]
+hermes = ["bundled_skills/**/*"]
