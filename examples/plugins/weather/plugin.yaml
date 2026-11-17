@@ -1,0 +1,4 @@
+name: weather
+version: 0.1.0
+description: Current weather via the keyless Open-Meteo API (example plugin)
+requires_env: []

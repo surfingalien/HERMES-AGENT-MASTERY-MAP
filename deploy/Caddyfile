@@ -1,0 +1,8 @@
+# HTTPS in front of the gateway webhooks and the API server (#80 security & isolation)
+agent.example.com {
+    handle /whatsapp* { reverse_proxy 127.0.0.1:8650 }
+    handle /teams/*   { reverse_proxy 127.0.0.1:8650 }
+    handle /google_chat/* { reverse_proxy 127.0.0.1:8650 }
+    handle /webhook/* { reverse_proxy 127.0.0.1:8650 }
+    handle /v1/*      { reverse_proxy 127.0.0.1:8642 }
+}

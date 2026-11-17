@@ -1,0 +1,22 @@
+# Example systemd unit for a VPS (#74). `hermes gateway install` generates a user unit automatically.
+# sudo cp deploy/hermes-gateway.service /etc/systemd/system/ && sudo systemctl enable --now hermes-gateway
+[Unit]
+Description=Hermes Agent gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hermes
+Environment=HERMES_HOME=/home/hermes/.hermes
+WorkingDirectory=/home/hermes/workspace
+ExecStart=/home/hermes/.hermes-venv/bin/hermes gateway run
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/hermes/.hermes /home/hermes/workspace
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,31 @@
+# docker compose up -d   (put secrets in ./hermes-data/.env, config in ./hermes-data/config.yaml)
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        EXTRAS: "[discord,slack]"
+    command: ["gateway", "run"]
+    restart: unless-stopped
+    env_file: [./hermes-data/.env]
+    volumes:
+      - ./hermes-data:/data/hermes
+      - ./workspace:/workspace
+    ports:
+      - "8650:8650"        # webhook platforms (put HTTPS in front)
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 2g
+    pids_limit: 512
+
+  api:
+    build: .
+    command: ["serve", "--host", "0.0.0.0", "--port", "8642"]
+    restart: unless-stopped
+    env_file: [./hermes-data/.env]   # must define API_SERVER_KEY
+    volumes:
+      - ./hermes-data:/data/hermes
+      - ./workspace:/workspace
+    ports:
+      - "127.0.0.1:8642:8642"
+    profiles: ["api"]
