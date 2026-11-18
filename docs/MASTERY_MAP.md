@@ -117,9 +117,9 @@ Also: per-chat persistent sessions, DM pairing codes (`hermes pairing approve`),
 | # | Item | Implementation |
 |---|------|----------------|
 | 71 | local machine | `scripts/install.sh`, `terminal.backend: local` |
-| 72 | Docker | `Dockerfile`, `docker-compose.yml`; `terminal.backend: docker` (hardened container per session) |
+| 72 | Docker | `Dockerfile` (one-port `serve --gateway`, root dropped, `/data` volume), `docker-compose.yml`, `render.yaml`, `fly.toml`; `terminal.backend: docker` (hardened container per session) |
 | 73 | SSH | `terminal.backend: ssh` with ControlMaster multiplexing |
-| 74 | VPS | `hermes gateway install` (systemd user unit / launchd), `deploy/hermes-gateway.service`, `deploy/Caddyfile` |
+| 74 | VPS | `hermes gateway install` (systemd user unit / launchd), `deploy/hermes-gateway.service`, `deploy/Caddyfile`; container hosts in `docs/DEPLOYMENT.md` |
 | 75 | Daytona | `terminal.backend: daytona` (`pip install daytona`) |
 | 76 | Modal | `terminal.backend: modal` (`pip install modal`) |
 | 77 | environment variables | `.env` loader, `hermes config env`, `terminal.env_passthrough` |

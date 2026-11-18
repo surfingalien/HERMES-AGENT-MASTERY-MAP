@@ -1,31 +1,17 @@
-# docker compose up -d   (put secrets in ./hermes-data/.env, config in ./hermes-data/config.yaml)
+# docker compose up -d
+# Put secrets in ./.env (HERMES_WEB_TOKEN, API_SERVER_KEY and a model key such as OPENROUTER_API_KEY).
+# Then open http://127.0.0.1:8642/?token=<HERMES_WEB_TOKEN>
 services:
-  gateway:
-    build:
-      context: .
-      args:
-        EXTRAS: "[discord,slack]"
-    command: ["gateway", "run"]
+  hermes:
+    build: .
     restart: unless-stopped
-    env_file: [./hermes-data/.env]
+    env_file: [.env]
+    environment:
+      HERMES_ALLOWED_HOSTS: "127.0.0.1,localhost"
     volumes:
-      - ./hermes-data:/data/hermes
-      - ./workspace:/workspace
+      - ./data:/data              # config, memory, skills, sessions, cron, workspace
     ports:
-      - "8650:8650"        # webhook platforms (put HTTPS in front)
+      - "127.0.0.1:8642:8080"     # dashboard + API + messaging webhooks (put HTTPS in front to expose it)
     security_opt: ["no-new-privileges:true"]
-    cap_drop: [ALL]
     mem_limit: 2g
     pids_limit: 512
-
-  api:
-    build: .
-    command: ["serve", "--host", "0.0.0.0", "--port", "8642"]
-    restart: unless-stopped
-    env_file: [./hermes-data/.env]   # must define API_SERVER_KEY
-    volumes:
-      - ./hermes-data:/data/hermes
-      - ./workspace:/workspace
-    ports:
-      - "127.0.0.1:8642:8642"
-    profiles: ["api"]

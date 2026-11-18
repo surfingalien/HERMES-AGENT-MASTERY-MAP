@@ -120,7 +120,9 @@ class GatewayRunner:
         for a in self.adapters.values():
             a.on_message = self.handle_event
 
-    def start(self, block: bool = True, cron: bool = True) -> None:
+    def start(self, block: bool = True, cron: bool = True, own_http: bool = True) -> None:
+        """Start adapters (+ cron ticker). ``own_http=False`` when webhooks are served by
+        another server on the same port (``hermes serve --gateway`` via :meth:`dispatch_webhook`)."""
         self.build_adapters()
         if not self.adapters:
             raise RuntimeError("no messaging platforms configured - run `hermes gateway setup`")
@@ -129,7 +131,8 @@ class GatewayRunner:
             t = threading.Thread(target=self._run_adapter, args=(name, a), daemon=True, name=f"adapter-{name}")
             t.start()
             self.threads.append(t)
-        self._start_http()
+        if own_http:
+            self._start_http()
         if cron:
             from hermes.cron.jobs import CronTicker
 
@@ -159,25 +162,36 @@ class GatewayRunner:
             adapter.stop_event.wait(backoff)
             backoff = min(backoff * 2, 300)
 
+    def webhook_adapters(self) -> dict[str, PlatformAdapter]:
+        return {n: a for n, a in self.adapters.items() if getattr(a, "uses_webhook", False)}
+
+    def dispatch_webhook(self, method: str, raw_path: str, headers: dict, body: bytes) -> tuple[int, dict | str] | None:
+        """Route ``/<platform>/...`` to that adapter. Returns None when no webhook platform matches."""
+        parsed = urllib.parse.urlparse(raw_path)
+        parts = parsed.path.lstrip("/").split("/", 1)
+        adapter = self.webhook_adapters().get(parts[0].replace("-", "_"))
+        if adapter is None:
+            return None
+        sub = "/" + (parts[1] if len(parts) > 1 else "") + (f"?{parsed.query}" if parsed.query else "")
+        try:
+            return adapter.handle_http(sub, headers, body, method=method)
+        except Exception:
+            log.exception("webhook handler failed")
+            return 500, "error"
+
     def _start_http(self) -> None:
-        webhook_adapters = {n: a for n, a in self.adapters.items() if getattr(a, "uses_webhook", False)}
-        if not webhook_adapters:
+        if not self.webhook_adapters():
             return
+        runner = self
+
         class Handler(BaseHTTPRequestHandler):
             def _dispatch(self):
-                parsed = urllib.parse.urlparse(self.path)
-                parts = parsed.path.lstrip("/").split("/", 1)
-                adapter = webhook_adapters.get(parts[0].replace("-", "_"))
-                sub = "/" + (parts[1] if len(parts) > 1 else "") + (f"?{parsed.query}" if parsed.query else "")
                 body = self.rfile.read(int(self.headers.get("Content-Length") or 0)) if self.command == "POST" else b""
-                if adapter is None:
-                    status, payload = (200, "ok") if parsed.path in ("/", "/health") else (404, "not found")
-                else:
-                    try:
-                        status, payload = adapter.handle_http(sub, dict(self.headers), body, method=self.command)
-                    except Exception:
-                        log.exception("webhook handler failed")
-                        status, payload = 500, "error"
+                result = runner.dispatch_webhook(self.command, self.path, dict(self.headers), body)
+                if result is None:
+                    path = urllib.parse.urlparse(self.path).path
+                    result = (200, "ok") if path in ("/", "/health") else (404, "not found")
+                status, payload = result
                 data = json.dumps(payload).encode() if isinstance(payload, (dict, list)) else str(payload).encode()
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json" if isinstance(payload, (dict, list)) else "text/plain")
@@ -194,7 +208,7 @@ class GatewayRunner:
         port = int(self.gcfg.get("webhook_port", 8650))
         self.http = ThreadingHTTPServer((host, port), Handler)
         threading.Thread(target=self.http.serve_forever, daemon=True, name="gateway-http").start()
-        log.info("webhook server on %s:%s for %s", host, port, ", ".join(webhook_adapters))
+        log.info("webhook server on %s:%s for %s", host, port, ", ".join(self.webhook_adapters()))
 
     def stop(self) -> None:
         for a in self.adapters.values():

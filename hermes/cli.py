@@ -813,7 +813,7 @@ def cmd_kanban(args) -> int:
 def cmd_serve(args) -> int:
     from hermes.power.api_server import serve
 
-    serve(_cfg(), args.host, args.port, with_dashboard=not args.no_dashboard)
+    serve(_cfg(), args.host, args.port, with_dashboard=not args.no_dashboard, with_gateway=args.gateway)
     return 0
 
 
@@ -1033,6 +1033,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--host")
     s.add_argument("--port", type=int)
     s.add_argument("--no-dashboard", action="store_true", help="serve only the /v1 API")
+    s.add_argument("--gateway", action="store_true",
+                   help="also run scheduled jobs and messaging platforms in this process (one port - for container hosts)")
     s = sub.add_parser("dashboard", help="open the web dashboard (chat, sessions, memory, skills, cron, insights, settings)")
     s.add_argument("--host")
     s.add_argument("--port", type=int)
