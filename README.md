@@ -88,7 +88,7 @@ To expose it beyond localhost set `HERMES_WEB_TOKEN` and put it behind HTTPS.
 | `hermes profile create researcher` / `hermes -p researcher` | specialist bots |
 | `hermes kanban add "..." --assignee writer` / `hermes kanban work` | multi-agent board |
 | `hermes dashboard` | web dashboard (chat, sessions, memory, skills, cron, insights, settings) |
-| `hermes serve [--no-dashboard]` | OpenAI-compatible API server (+ dashboard on the same port) |
+| `hermes serve [--gateway] [--no-dashboard]` | API + dashboard on one port; `--gateway` adds scheduled jobs and messaging (container mode) |
 | `hermes acp` | editor integration (Agent Client Protocol) |
 | `hermes voice` | push-to-talk voice mode |
 | `hermes batch prompts.jsonl --workers 8` | parallel batch runs + trajectories |
@@ -134,15 +134,20 @@ hermes gateway run       # or: hermes gateway install (systemd / launchd)
 
 ## Deploy
 
-* **Local:** `./scripts/install.sh`
-* **Docker:** `docker compose up -d` (data in `./hermes-data`, see `docker-compose.yml`)
-* **VPS:** `hermes gateway install` (systemd user unit) or `deploy/hermes-gateway.service`; HTTPS via `deploy/Caddyfile`
+Hermes needs an always-on process with a persistent disk, so it runs on **container hosts**, not
+serverless platforms like Vercel. One container serves the dashboard, the `/v1` API, scheduled
+jobs and messaging webhooks on a single port. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+* **Render (from GitHub):** New → Blueprint → this repo (`render.yaml`, disk at `/data`)
+* **Fly.io:** `fly launch --copy-config`, `fly volumes create hermes_data`, `fly secrets set ...`, `fly deploy`
+* **Docker:** `docker compose up -d` (data in `./data`)
+* **Local / VPS without Docker:** `./scripts/install.sh`, then `hermes serve --gateway` or `hermes gateway install`
 * **Sandboxed execution:** `hermes config set terminal.backend docker|ssh|daytona|modal`
 
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -t .     # 82 tests, offline (mock provider)
+python -m unittest discover -s tests -t .     # 86 tests, offline (mock provider)
 ```
 
 ## Known limitations

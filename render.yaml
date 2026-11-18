@@ -1,0 +1,31 @@
+# Render Blueprint - in Render: New > Blueprint > select this repository > Apply.
+# Runs the dashboard, API, scheduled jobs and messaging platforms in one always-on service
+# with a persistent disk. Persistent disks need a paid instance type (starter or above).
+services:
+  - type: web
+    name: hermes-agent
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: hermes-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      # Sign-in secret for the dashboard: open https://<your-service>.onrender.com/?token=<this value>
+      - key: HERMES_WEB_TOKEN
+        generateValue: true
+      # Bearer key for the OpenAI-compatible API at /v1
+      - key: API_SERVER_KEY
+        generateValue: true
+      - key: HERMES_PROVIDER
+        value: openrouter
+      - key: HERMES_MODEL
+        value: anthropic/claude-opus-5-5
+      # Fill in the key for the provider you use (Render asks for these on first deploy)
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

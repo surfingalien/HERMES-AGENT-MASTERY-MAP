@@ -60,6 +60,18 @@ CHOICES = {
 }
 
 
+def platform_hosts() -> list[str]:
+    """Public hostnames the dashboard may be reached on, from env / hosting platform."""
+    hosts = [h.strip() for h in os.environ.get("HERMES_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    if os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+        hosts.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
+    if os.environ.get("FLY_APP_NAME"):
+        hosts.append(f"{os.environ['FLY_APP_NAME']}.fly.dev")
+    if os.environ.get("RAILWAY_PUBLIC_DOMAIN"):
+        hosts.append(os.environ["RAILWAY_PUBLIC_DOMAIN"])
+    return hosts
+
+
 class HTTPError(Exception):
     def __init__(self, status: int, message: str):
         super().__init__(message)
@@ -142,9 +154,11 @@ class Dashboard:
     def __init__(self, cfg: dict | None = None, token: str | None = None, agent_factory: Callable | None = None,
                  allowed_hosts: list[str] | None = None):
         self.cfg = cfg if cfg is not None else hconfig.load_config()
-        self.token = token or os.environ.get((self.cfg.get("dashboard", {}) or {}).get("token_env", "HERMES_WEB_TOKEN"), "") or secrets.token_urlsafe(24)
+        env_token = os.environ.get((self.cfg.get("dashboard", {}) or {}).get("token_env", "HERMES_WEB_TOKEN"), "")
+        self.token_from_env = bool(env_token) and not token
+        self.token = token or env_token or secrets.token_urlsafe(24)
         self.session_secret = secrets.token_urlsafe(32)  # cookie value, never shown
-        self.allowed_hosts = set(allowed_hosts or ["127.0.0.1", "localhost", "[::1]"])
+        self.allowed_hosts = set(allowed_hosts or ["127.0.0.1", "localhost", "[::1]"]) | set(platform_hosts())
         if agent_factory is None:
             from hermes.agent import AIAgent
 
@@ -160,7 +174,11 @@ class Dashboard:
 
     # ------------------------------------------------------------ auth
     def login_url(self, host: str, port: int) -> str:
-        return f"http://{host}:{port}/?token={urllib.parse.quote(self.token)}"
+        public = platform_hosts()
+        base = f"https://{public[0]}" if public else f"http://{host}:{port}"
+        if self.token_from_env:  # never print a configured secret into platform logs
+            return f"{base}/?token=<value of HERMES_WEB_TOKEN>"
+        return f"{base}/?token={urllib.parse.quote(self.token)}"
 
     def check_host(self, host_header: str) -> bool:
         host = (host_header or "").rsplit(":", 1)[0] if not (host_header or "").startswith("[") else host_header.split("]")[0] + "]"
@@ -187,7 +205,8 @@ class Dashboard:
             if method == "GET" and path == "/" and "token" in query:
                 if hmac.compare_digest(query["token"][0], self.token):
                     h.send_response(303)
-                    h.send_header("Set-Cookie", f"{COOKIE}={self.session_secret}; HttpOnly; SameSite=Strict; Path=/")
+                    secure = "; Secure" if h.headers.get("X-Forwarded-Proto", "").lower() == "https" else ""
+                    h.send_header("Set-Cookie", f"{COOKIE}={self.session_secret}; HttpOnly; SameSite=Strict; Path=/{secure}")
                     h.send_header("Location", "/")
                     h.send_header("Content-Length", "0")
                     h.end_headers()

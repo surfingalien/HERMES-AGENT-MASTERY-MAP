@@ -273,7 +273,26 @@ def load_config(config_path: Path | None = None, load_env: bool = True) -> Confi
         user = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         if not isinstance(user, dict):
             raise ValueError(f"{config_path} must contain a YAML mapping")
-    return Config(deep_merge(DEFAULT_CONFIG, user))
+    return Config(deep_merge(env_defaults(), user))
+
+
+# Env vars that seed defaults for container deploys (Render, Fly, Docker).
+# config.yaml - including edits made in the dashboard - still takes precedence.
+ENV_DEFAULTS = {
+    "HERMES_PROVIDER": "model.provider",
+    "HERMES_MODEL": "model.default",
+    "HERMES_BASE_URL": "model.base_url",
+    "HERMES_CWD": "terminal.cwd",
+    "HERMES_APPROVALS": "approvals.mode",
+}
+
+
+def env_defaults() -> dict:
+    base = Config(copy.deepcopy(DEFAULT_CONFIG))
+    for var, dotted in ENV_DEFAULTS.items():
+        if os.environ.get(var):
+            base.set_path(dotted, os.environ[var])
+    return dict(base)
 
 
 def save_config(cfg: dict, config_path: Path | None = None) -> Path:

@@ -25,7 +25,7 @@ log = logging.getLogger("hermes.api")
 
 
 def make_server(cfg: dict, host: str | None = None, port: int | None = None, agent_factory=None,
-                dashboard=None) -> ThreadingHTTPServer:
+                dashboard=None, gateway=None) -> ThreadingHTTPServer:
     """OpenAI-compatible API; with ``dashboard`` also serves the web UI on every non-/v1 path."""
     acfg = cfg.get("api_server", {}) or {}
     key = os.environ.get(acfg.get("key_env", "API_SERVER_KEY"), "")
@@ -50,7 +50,26 @@ def make_server(cfg: dict, host: str | None = None, port: int | None = None, age
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
+        def _hook(self) -> bool:
+            """Messaging webhooks (/whatsapp, /teams/..., /google_chat/..., /webhook/...) on the shared port."""
+            if gateway is None or self.command not in ("GET", "POST"):
+                return False
+            first = self.path.lstrip("/").split("/", 1)[0].split("?", 1)[0].replace("-", "_")
+            if first not in gateway.webhook_adapters():
+                return False
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0)) if self.command == "POST" else b""
+            status, payload = gateway.dispatch_webhook(self.command, self.path, dict(self.headers), body) or (404, "not found")
+            data = json.dumps(payload).encode() if isinstance(payload, (dict, list)) else str(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json" if isinstance(payload, (dict, list)) else "text/plain")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return True
+
         def _ui(self) -> bool:
+            if self._hook():
+                return True
             if dashboard is not None and not is_api(self.path):
                 dashboard.handle(self)
                 return True
@@ -159,7 +178,22 @@ def make_server(cfg: dict, host: str | None = None, port: int | None = None, age
 
 
 def serve(cfg: dict, host: str | None = None, port: int | None = None, with_dashboard: bool = True,
-          open_browser: bool = False) -> None:
+          open_browser: bool = False, with_gateway: bool = False) -> None:
+    """Run the API (+ dashboard). With ``with_gateway`` the same process also runs the cron
+    ticker and any configured messaging platforms - one port, as container hosts expect."""
+    if port is None and os.environ.get("PORT"):
+        port = int(os.environ["PORT"])  # Render / Fly / Railway / Heroku-style platforms
+    workdir = (cfg.get("terminal", {}) or {}).get("cwd") or "."
+    try:
+        os.makedirs(os.path.expanduser(workdir), exist_ok=True)  # e.g. /data/workspace on a fresh volume
+    except OSError:
+        log.warning("could not create working directory %s", workdir)
+    try:  # first boot on a fresh volume: install the bundled skills (user edits are preserved)
+        from hermes.skills.manager import SkillManager
+
+        SkillManager(cfg).sync_bundled()
+    except Exception:
+        log.exception("could not sync bundled skills")
     dashboard = None
     if with_dashboard:
         from hermes.web.dashboard import Dashboard
@@ -168,23 +202,44 @@ def serve(cfg: dict, host: str | None = None, port: int | None = None, with_dash
         bind = host or (cfg.get("api_server", {}) or {}).get("host", "127.0.0.1")
         dashboard = Dashboard(cfg, allowed_hosts=["127.0.0.1", "localhost", "[::1]", *([bind] if bind not in ("0.0.0.0", "::") else []),
                                                   *wcfg.get("allowed_hosts", [])])
-    server = make_server(cfg, host, port, dashboard=dashboard)
+    runner, ticker = None, None
+    if with_gateway:
+        from hermes.gateway.runner import GatewayRunner
+
+        runner = GatewayRunner(cfg)
+        runner.build_adapters()
+        if runner.adapters:
+            runner.start(block=False, cron=True, own_http=False)
+        else:
+            runner = None
+            from hermes.cron.jobs import CronTicker
+            from hermes.gateway.delivery import deliver
+
+            ticker = CronTicker(cfg, lambda t, text, o: deliver(t, text, o, cfg), int((cfg.get("gateway", {}) or {}).get("cron_tick_seconds", 60)))
+            ticker.start()
+    server = make_server(cfg, host, port, dashboard=dashboard, gateway=runner)
     shown_host = server.server_address[0] if server.server_address[0] not in ("0.0.0.0", "::") else "127.0.0.1"
     port = server.server_address[1]
-    print(f"Hermes API:       http://{shown_host}:{port}/v1")
+    print(f"Hermes API:       http://{shown_host}:{port}/v1", flush=True)
     if dashboard is not None:
         url = dashboard.login_url(shown_host, port)
-        print(f"Hermes dashboard: {url}\n  (this link signs you in - keep it private)")
+        print(f"Hermes dashboard: {url}\n  (this link signs you in - keep it private)", flush=True)
         if open_browser:
             import webbrowser
 
             threading.Timer(0.5, lambda: webbrowser.open(url)).start()
-    print("Ctrl+C to stop")
+    if with_gateway:
+        print("Scheduled jobs:   running" + (f"; messaging: {', '.join(runner.adapters)}" if runner else " (no messaging platforms configured)"), flush=True)
+    print("Ctrl+C to stop", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        if runner is not None:
+            runner.stop()
+        if ticker is not None:
+            ticker.stop()
         if dashboard is not None:
             dashboard.shutdown()
         server.server_close()
